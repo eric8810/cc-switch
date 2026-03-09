@@ -1,5 +1,7 @@
 #[path = "baseline/env_baseline.rs"]
 mod env_baseline;
+#[path = "baseline/failover_baseline.rs"]
+mod failover_baseline;
 #[path = "baseline/global_proxy_baseline.rs"]
 mod global_proxy_baseline;
 #[path = "baseline/omo_baseline.rs"]
@@ -8,6 +10,8 @@ mod omo_baseline;
 mod openclaw_baseline;
 #[path = "baseline/plugin_baseline.rs"]
 mod plugin_baseline;
+#[path = "baseline/proxy_runtime_baseline.rs"]
+mod proxy_runtime_baseline;
 #[path = "baseline/prompt_baseline.rs"]
 mod prompt_baseline;
 #[path = "baseline/session_baseline.rs"]
@@ -20,6 +24,8 @@ mod skill_baseline;
 mod stream_check_baseline;
 #[path = "baseline/support.rs"]
 mod support;
+#[path = "baseline/universal_provider_baseline.rs"]
+mod universal_provider_baseline;
 #[path = "baseline/usage_baseline.rs"]
 mod usage_baseline;
 #[path = "baseline/webdav_baseline.rs"]

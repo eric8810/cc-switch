@@ -54,12 +54,31 @@ pub fn get_request_detail(
     state: State<'_, AppState>,
     request_id: String,
 ) -> Result<Option<RequestLogDetail>, AppError> {
-    state.db.get_request_detail(&request_id)
+    get_request_detail_internal(&state, &request_id)
+}
+
+fn get_request_detail_internal(
+    state: &AppState,
+    request_id: &str,
+) -> Result<Option<RequestLogDetail>, AppError> {
+    state.db.get_request_detail(request_id)
+}
+
+#[cfg_attr(not(feature = "test-hooks"), doc(hidden))]
+pub fn get_request_detail_test_hook(
+    state: &AppState,
+    request_id: &str,
+) -> Result<Option<RequestLogDetail>, AppError> {
+    get_request_detail_internal(state, request_id)
 }
 
 /// 获取模型定价列表
 #[tauri::command]
 pub fn get_model_pricing(state: State<'_, AppState>) -> Result<Vec<ModelPricingInfo>, AppError> {
+    get_model_pricing_internal(&state)
+}
+
+fn get_model_pricing_internal(state: &AppState) -> Result<Vec<ModelPricingInfo>, AppError> {
     log::info!("获取模型定价列表");
     state.db.ensure_model_pricing_seeded()?;
 
@@ -107,6 +126,11 @@ pub fn get_model_pricing(state: State<'_, AppState>) -> Result<Vec<ModelPricingI
     Ok(pricing)
 }
 
+#[cfg_attr(not(feature = "test-hooks"), doc(hidden))]
+pub fn get_model_pricing_test_hook(state: &AppState) -> Result<Vec<ModelPricingInfo>, AppError> {
+    get_model_pricing_internal(state)
+}
+
 /// 更新模型定价
 #[tauri::command]
 pub fn update_model_pricing(
@@ -117,6 +141,26 @@ pub fn update_model_pricing(
     output_cost: String,
     cache_read_cost: String,
     cache_creation_cost: String,
+) -> Result<(), AppError> {
+    update_model_pricing_internal(
+        &state,
+        &model_id,
+        &display_name,
+        &input_cost,
+        &output_cost,
+        &cache_read_cost,
+        &cache_creation_cost,
+    )
+}
+
+fn update_model_pricing_internal(
+    state: &AppState,
+    model_id: &str,
+    display_name: &str,
+    input_cost: &str,
+    output_cost: &str,
+    cache_read_cost: &str,
+    cache_creation_cost: &str,
 ) -> Result<(), AppError> {
     let db = state.db.clone();
     let conn = crate::database::lock_conn!(db.conn);
@@ -140,6 +184,28 @@ pub fn update_model_pricing(
     Ok(())
 }
 
+#[cfg_attr(not(feature = "test-hooks"), doc(hidden))]
+#[allow(clippy::too_many_arguments)]
+pub fn update_model_pricing_test_hook(
+    state: &AppState,
+    model_id: &str,
+    display_name: &str,
+    input_cost: &str,
+    output_cost: &str,
+    cache_read_cost: &str,
+    cache_creation_cost: &str,
+) -> Result<(), AppError> {
+    update_model_pricing_internal(
+        state,
+        model_id,
+        display_name,
+        input_cost,
+        output_cost,
+        cache_read_cost,
+        cache_creation_cost,
+    )
+}
+
 /// 检查 Provider 使用限额
 #[tauri::command]
 pub fn check_provider_limits(
@@ -153,6 +219,10 @@ pub fn check_provider_limits(
 /// 删除模型定价
 #[tauri::command]
 pub fn delete_model_pricing(state: State<'_, AppState>, model_id: String) -> Result<(), AppError> {
+    delete_model_pricing_internal(&state, &model_id)
+}
+
+fn delete_model_pricing_internal(state: &AppState, model_id: &str) -> Result<(), AppError> {
     let db = state.db.clone();
     let conn = crate::database::lock_conn!(db.conn);
 
@@ -164,6 +234,14 @@ pub fn delete_model_pricing(state: State<'_, AppState>, model_id: String) -> Res
 
     log::info!("已删除模型定价: {model_id}");
     Ok(())
+}
+
+#[cfg_attr(not(feature = "test-hooks"), doc(hidden))]
+pub fn delete_model_pricing_test_hook(
+    state: &AppState,
+    model_id: &str,
+) -> Result<(), AppError> {
+    delete_model_pricing_internal(state, model_id)
 }
 
 /// 模型定价信息

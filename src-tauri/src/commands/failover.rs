@@ -64,24 +64,37 @@ pub async fn get_auto_failover_enabled(
     state: tauri::State<'_, AppState>,
     app_type: String,
 ) -> Result<bool, String> {
+    get_auto_failover_enabled_internal(&state, &app_type).await
+}
+
+async fn get_auto_failover_enabled_internal(
+    state: &AppState,
+    app_type: &str,
+) -> Result<bool, String> {
     state
         .db
-        .get_proxy_config_for_app(&app_type)
+        .get_proxy_config_for_app(app_type)
         .await
         .map(|config| config.auto_failover_enabled)
         .map_err(|e| e.to_string())
 }
 
+#[cfg_attr(not(feature = "test-hooks"), doc(hidden))]
+pub async fn get_auto_failover_enabled_test_hook(
+    state: &AppState,
+    app_type: &str,
+) -> Result<bool, String> {
+    get_auto_failover_enabled_internal(state, app_type).await
+}
+
 /// 设置指定应用的自动故障转移开关状态（写入 proxy_config 表）
 ///
 /// 注意：关闭故障转移时不会清除队列，队列内容会保留供下次开启时使用
-#[tauri::command]
-pub async fn set_auto_failover_enabled(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, AppState>,
-    app_type: String,
+async fn set_auto_failover_enabled_internal(
+    state: &AppState,
+    app_type: &str,
     enabled: bool,
-) -> Result<(), String> {
+) -> Result<Option<String>, String> {
     log::info!(
         "[Failover] Setting auto_failover_enabled: app_type='{app_type}', enabled={enabled}"
     );
@@ -94,11 +107,11 @@ pub async fn set_auto_failover_enabled(
     let p1_provider_id = if enabled {
         let mut queue = state
             .db
-            .get_failover_queue(&app_type)
+            .get_failover_queue(app_type)
             .map_err(|e| e.to_string())?;
 
         if queue.is_empty() {
-            let app_enum = crate::app_config::AppType::from_str(&app_type)
+            let app_enum = crate::app_config::AppType::from_str(app_type)
                 .map_err(|_| format!("无效的应用类型: {app_type}"))?;
 
             let current_id = crate::settings::get_effective_current_provider(&state.db, &app_enum)
@@ -110,12 +123,12 @@ pub async fn set_auto_failover_enabled(
 
             state
                 .db
-                .add_to_failover_queue(&app_type, &current_id)
+                .add_to_failover_queue(app_type, &current_id)
                 .map_err(|e| e.to_string())?;
 
             queue = state
                 .db
-                .get_failover_queue(&app_type)
+                .get_failover_queue(app_type)
                 .map_err(|e| e.to_string())?;
         }
 
@@ -130,7 +143,7 @@ pub async fn set_auto_failover_enabled(
     // 读取当前配置
     let mut config = state
         .db
-        .get_proxy_config_for_app(&app_type)
+        .get_proxy_config_for_app(app_type)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -148,19 +161,43 @@ pub async fn set_auto_failover_enabled(
     if enabled {
         state
             .proxy_service
-            .switch_proxy_target(&app_type, &p1_provider_id)
+            .switch_proxy_target(app_type, &p1_provider_id)
             .await?;
 
-        // 发射 provider-switched 事件（让前端刷新当前供应商）
+        return Ok(Some(p1_provider_id));
+    }
+
+    Ok(None)
+}
+
+#[cfg_attr(not(feature = "test-hooks"), doc(hidden))]
+pub async fn set_auto_failover_enabled_test_hook(
+    state: &AppState,
+    app_type: &str,
+    enabled: bool,
+) -> Result<Option<String>, String> {
+    set_auto_failover_enabled_internal(state, app_type, enabled).await
+}
+
+#[tauri::command]
+pub async fn set_auto_failover_enabled(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    app_type: String,
+    enabled: bool,
+) -> Result<(), String> {
+    let switched_to =
+        set_auto_failover_enabled_internal(&state, &app_type, enabled).await?;
+
+    if let Some(provider_id) = switched_to {
         let event_data = serde_json::json!({
             "appType": app_type,
-            "providerId": p1_provider_id,
+            "providerId": provider_id,
             "source": "failoverEnabled"
         });
         let _ = app.emit("provider-switched", event_data);
     }
 
-    // 刷新托盘菜单，确保状态同步
     if let Ok(new_menu) = crate::tray::create_tray_menu(&app, &state) {
         if let Some(tray) = app.tray_by_id("main") {
             let _ = tray.set_menu(Some(new_menu));

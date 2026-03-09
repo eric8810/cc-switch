@@ -274,11 +274,72 @@ fn emit_universal_provider_synced(app: &AppHandle, action: &str, id: &str) {
     );
 }
 
+fn get_universal_providers_internal(
+    state: &AppState,
+) -> Result<HashMap<String, UniversalProvider>, String> {
+    ProviderService::list_universal(state).map_err(|e| e.to_string())
+}
+
+fn get_universal_provider_internal(
+    state: &AppState,
+    id: &str,
+) -> Result<Option<UniversalProvider>, String> {
+    ProviderService::get_universal(state, id).map_err(|e| e.to_string())
+}
+
+fn upsert_universal_provider_internal(
+    state: &AppState,
+    provider: UniversalProvider,
+) -> Result<bool, String> {
+    ProviderService::upsert_universal(state, provider).map_err(|e| e.to_string())
+}
+
+fn delete_universal_provider_internal(state: &AppState, id: &str) -> Result<bool, String> {
+    ProviderService::delete_universal(state, id).map_err(|e| e.to_string())
+}
+
+fn sync_universal_provider_internal(state: &AppState, id: &str) -> Result<bool, String> {
+    ProviderService::sync_universal_to_apps(state, id).map_err(|e| e.to_string())
+}
+
+#[cfg_attr(not(feature = "test-hooks"), doc(hidden))]
+pub fn get_universal_providers_test_hook(
+    state: &AppState,
+) -> Result<HashMap<String, UniversalProvider>, String> {
+    get_universal_providers_internal(state)
+}
+
+#[cfg_attr(not(feature = "test-hooks"), doc(hidden))]
+pub fn get_universal_provider_test_hook(
+    state: &AppState,
+    id: &str,
+) -> Result<Option<UniversalProvider>, String> {
+    get_universal_provider_internal(state, id)
+}
+
+#[cfg_attr(not(feature = "test-hooks"), doc(hidden))]
+pub fn upsert_universal_provider_test_hook(
+    state: &AppState,
+    provider: UniversalProvider,
+) -> Result<bool, String> {
+    upsert_universal_provider_internal(state, provider)
+}
+
+#[cfg_attr(not(feature = "test-hooks"), doc(hidden))]
+pub fn delete_universal_provider_test_hook(state: &AppState, id: &str) -> Result<bool, String> {
+    delete_universal_provider_internal(state, id)
+}
+
+#[cfg_attr(not(feature = "test-hooks"), doc(hidden))]
+pub fn sync_universal_provider_test_hook(state: &AppState, id: &str) -> Result<bool, String> {
+    sync_universal_provider_internal(state, id)
+}
+
 #[tauri::command]
 pub fn get_universal_providers(
     state: State<'_, AppState>,
 ) -> Result<HashMap<String, UniversalProvider>, String> {
-    ProviderService::list_universal(state.inner()).map_err(|e| e.to_string())
+    get_universal_providers_internal(state.inner())
 }
 
 #[tauri::command]
@@ -286,7 +347,7 @@ pub fn get_universal_provider(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<Option<UniversalProvider>, String> {
-    ProviderService::get_universal(state.inner(), &id).map_err(|e| e.to_string())
+    get_universal_provider_internal(state.inner(), &id)
 }
 
 #[tauri::command]
@@ -296,8 +357,7 @@ pub fn upsert_universal_provider(
     provider: UniversalProvider,
 ) -> Result<bool, String> {
     let id = provider.id.clone();
-    let result =
-        ProviderService::upsert_universal(state.inner(), provider).map_err(|e| e.to_string())?;
+    let result = upsert_universal_provider_internal(state.inner(), provider)?;
 
     emit_universal_provider_synced(&app, "upsert", &id);
 
@@ -310,8 +370,7 @@ pub fn delete_universal_provider(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<bool, String> {
-    let result =
-        ProviderService::delete_universal(state.inner(), &id).map_err(|e| e.to_string())?;
+    let result = delete_universal_provider_internal(state.inner(), &id)?;
 
     emit_universal_provider_synced(&app, "delete", &id);
 
@@ -324,8 +383,7 @@ pub fn sync_universal_provider(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<bool, String> {
-    let result =
-        ProviderService::sync_universal_to_apps(state.inner(), &id).map_err(|e| e.to_string())?;
+    let result = sync_universal_provider_internal(state.inner(), &id)?;
 
     emit_universal_provider_synced(&app, "sync", &id);
 
